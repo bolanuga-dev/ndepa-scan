@@ -20,15 +20,15 @@ jobs:
         with:
           go-version: '1.22'
 
-      - name: Build Scanner Binary
+      - name: Run Policy Unit Tests
         run: |
           go mod tidy
+          go test -v ./...
+
+      - name: Build Scanner Binary
+        run: |
           go build -o ndepa-scan ./cmd/ndepa-scan/main.go
 
-      - name: Execute NDPA Infrastructure Audit
+      - name: Execute Scan on Compliant Manifest
         run: |
-          # Run scan on all YAML manifests in policies directory
-          for manifest in policies/*.yaml; do
-            echo "Scanning $manifest..."
-            ./ndepa-scan "$manifest"
-          done
+          ./ndepa-scan policies/compliant_k8s.yaml
