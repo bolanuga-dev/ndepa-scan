@@ -8,20 +8,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const policyContent = `
-package ndepa.policies
-
-default deny = []
-
-deny[msg] {
-	resource := input.kubernetes_resources[_]
-	resource.kind == "Ingress"
-	resource.metadata.labels["ndpa-classification"] == "pii"
-	not resource.spec.tls
-	msg := "NDPA Section 39 Violation: Ingress handling PII lacks TLS configuration"
-}
-`
-
 func evaluateManifest(t *testing.T, yamlContent string) []interface{} {
 	t.Helper()
 
