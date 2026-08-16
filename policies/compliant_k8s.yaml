@@ -1,0 +1,30 @@
+kubernetes_resources:
+  - kind: Ingress
+    metadata:
+      name: compliant-api-gateway
+      labels:
+        ndpa-classification: pii
+    spec:
+      tls:
+        - hosts:
+            - api.fintech.ng
+          secretName: api-tls-cert
+      rules:
+        - host: api.fintech.ng
+  - kind: Pod
+    metadata:
+      name: secure-batch-processor
+      labels:
+        ndpa-classification: pii
+    spec:
+      securityContext:
+        runAsNonRoot: true
+  - kind: ClusterRole
+    metadata:
+      name: scoped-read-only-role
+      labels:
+        ndpa-classification: pii
+    rules:
+      - apiGroups: [""]
+        resources: ["pods"]
+        verbs: ["get", "list"]
