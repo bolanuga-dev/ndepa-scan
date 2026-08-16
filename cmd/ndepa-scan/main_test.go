@@ -11,8 +11,6 @@ import (
 const testPolicyContent = `
 package ndepa.policies
 
-default deny = []
-
 deny[msg] {
 	resource := input.kubernetes_resources[_]
 	resource.kind == "Ingress"
