@@ -1,0 +1,44 @@
+{
+  "resource": {
+    "aws_s3_bucket": [
+      {
+        "name": "fintech-customer-bvn-storage",
+        "region": "us-east-1",
+        "encrypted": true,
+        "lifecycle_rule_enabled": false,
+        "tags": {
+          "Environment": "Production",
+          "NDPA-DataClassification": "PII"
+        }
+      },
+      {
+        "name": "fintech-user-backups-lagos",
+        "region": "af-south-1",
+        "encrypted": false,
+        "lifecycle_rule_enabled": true,
+        "tags": {
+          "Environment": "Production",
+          "NDPA-DataClassification": "PII"
+        }
+      }
+    ],
+    "aws_iam_policy": [
+      {
+        "name": "fintech-pii-processor-role",
+        "actions": ["*"],
+        "tags": {
+          "NDPA-DataClassification": "PII"
+        }
+      }
+    ],
+    "aws_security_group": [
+      {
+        "name": "payment-service-egress-sg",
+        "egress_cidr": "0.0.0.0/0",
+        "tags": {
+          "NDPA-DataClassification": "PII"
+        }
+      }
+    ]
+  }
+}

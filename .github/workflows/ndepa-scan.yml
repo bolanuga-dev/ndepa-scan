@@ -1,0 +1,34 @@
+name: NDPA Compliance Security Audit
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  ndpa-security-scan:
+    name: NDPA Data Privacy Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Set up Go Environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build Scanner Binary
+        run: |
+          go mod tidy
+          go build -o ndepa-scan ./cmd/ndepa-scan/main.go
+
+      - name: Execute NDPA Infrastructure Audit
+        run: |
+          # Run scan on all YAML manifests in policies directory
+          for manifest in policies/*.yaml; do
+            echo "Scanning $manifest..."
+            ./ndepa-scan "$manifest"
+          done

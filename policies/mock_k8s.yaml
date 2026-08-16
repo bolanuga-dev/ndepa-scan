@@ -1,0 +1,26 @@
+kubernetes_resources:
+  - kind: Ingress
+    metadata:
+      name: fintech-bvn-api-gateway
+      labels:
+        ndpa-classification: pii
+    spec:
+      rules:
+        - host: api.fintech.ng
+  - kind: Pod
+    metadata:
+      name: bvn-batch-processor
+      labels:
+        ndpa-classification: pii
+    spec:
+      securityContext:
+        runAsNonRoot: false
+  - kind: ClusterRole
+    metadata:
+      name: ci-cd-pipeline-admin
+      labels:
+        ndpa-classification: pii
+    rules:
+      - apiGroups: ["*"]
+        resources: ["*"]
+        verbs: ["*"]
