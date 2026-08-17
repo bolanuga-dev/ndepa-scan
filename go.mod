@@ -3,6 +3,7 @@ module github.com/ndepa-scan/ndepa-scan
 go 1.22.0
 
 require (
+	github.com/bolanuga-dev/ndepa-scan v0.0.0-00010101000000-000000000000
 	github.com/open-policy-agent/opa v0.61.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -38,3 +39,5 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
+
+replace github.com/bolanuga-dev/ndepa-scan => .

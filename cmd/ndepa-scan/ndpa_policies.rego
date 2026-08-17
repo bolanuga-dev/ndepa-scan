@@ -181,3 +181,47 @@ k8s_has_wildcard(role) {
 k8s_has_wildcard(role) {
     role.rules[_].resources[_] == "*"
 }
+# ==================================================================
+# NDPA SECTION 39: Security Safeguards (Kubernetes Workload Security)
+# ==================================================================
+
+# Helper function to safely read securityContext properties without triggering undefined states
+get_sec_context(container, key, default_val) = value {
+    value := container.securityContext[key]
+} else = default_val
+
+# Container Privileges Rule
+deny[msg] {
+    workload := input
+    workload.kind == "Deployment"
+    container := workload.spec.template.spec.containers[_]
+    
+    run_as_non_root := get_sec_context(container, "runAsNonRoot", false)
+    run_as_non_root != true
+
+    msg := sprintf("NDPA VIOLATION (Section 39 - Container Security): Container '%s' in Deployment '%s' must set 'securityContext.runAsNonRoot: true'.", [container.name, workload.metadata.name])
+}
+
+# Immutable Filesystem Rule
+deny[msg] {
+    workload := input
+    workload.kind == "Deployment"
+    container := workload.spec.template.spec.containers[_]
+    
+    read_only := get_sec_context(container, "readOnlyRootFilesystem", false)
+    read_only != true
+
+    msg := sprintf("NDPA VIOLATION (Section 39 - Container Security): Container '%s' in Deployment '%s' must set 'securityContext.readOnlyRootFilesystem: true'.", [container.name, workload.metadata.name])
+}
+
+# Privilege Escalation Rule
+deny[msg] {
+    workload := input
+    workload.kind == "Deployment"
+    container := workload.spec.template.spec.containers[_]
+    
+    allow_esc := get_sec_context(container, "allowPrivilegeEscalation", true)
+    allow_esc != false
+
+    msg := sprintf("NDPA VIOLATION (Section 39 - Container Security): Container '%s' in Deployment '%s' must set 'securityContext.allowPrivilegeEscalation: false'.", [container.name, workload.metadata.name])
+}

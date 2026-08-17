@@ -2,137 +2,100 @@ package main
 
 import (
 	"context"
-	_ "embed"
-	"encoding/json"
-	"flag"
+	"embed"
 	"fmt"
+	"io"
 	"log"
 	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/open-policy-agent/opa/rego"
-	"gopkg.in/yaml.v3"
+	"github.com/bolanuga-dev/ndepa-scan/pkg/parser"
 )
 
 //go:embed ndpa_policies.rego
-var policyContent string
-
-type Finding struct {
-	ID          int    `json:"id"`
-	Rule        string `json:"rule"`
-	Description string `json:"description"`
-}
-
-type ScanReport struct {
-	Timestamp   string    `json:"timestamp"`
-	TargetFile  string    `json:"target_file"`
-	TotalErrors int       `json:"total_errors"`
-	Status      string    `json:"status"`
-	Findings    []Finding `json:"findings"`
-}
+var embeddedPolicies embed.FS
 
 func main() {
-	formatFlag := flag.String("format", "text", "Output format: 'text' or 'json'")
-	flag.Parse()
-
-	args := flag.Args()
-	if len(args) < 1 {
-		fmt.Println("Usage: ndepa-scan [--format=text|json] <path-to-manifest>")
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: ndepa-scan <file-or-dir-or->")
+		fmt.Println("Example: ndepa-scan ./terraform/plan.json")
+		fmt.Println("Example: helm template . | ndepa-scan -")
 		os.Exit(1)
 	}
 
-	manifestPath := args[0]
-	fileBytes, err := os.ReadFile(manifestPath)
-	if err != nil {
-		log.Fatalf("Error reading file %s: %v", manifestPath, err)
+	targetPath := os.Args[1]
+
+	// Determine input stream (stdin vs file)
+	var reader io.Reader
+	if targetPath == "-" {
+		reader = os.Stdin
+	} else {
+		file, err := os.Open(targetPath)
+		if err != nil {
+			log.Fatalf("Error opening target file: %v", err)
+		}
+		defer file.Close()
+		reader = file
 	}
 
-	// Unmarshal input dynamically based on file extension
-	var input map[string]interface{}
-	ext := strings.ToLower(filepath.Ext(manifestPath))
+	// Read and parse multi-document YAML or JSON stream
+	documents, err := parser.ParseYAMLOrJSON(reader)
+	if err != nil {
+		log.Fatalf("Error parsing input: %v", err)
+	}
 
-	if ext == ".yaml" || ext == ".yml" {
-		if err := yaml.Unmarshal(fileBytes, &input); err != nil {
-			log.Fatalf("Error parsing YAML manifest: %v", err)
-		}
-	} else {
-		if err := json.Unmarshal(fileBytes, &input); err != nil {
-			log.Fatalf("Error parsing JSON manifest: %v", err)
-		}
+	// Read embedded Rego policy content
+	policyBytes, err := embeddedPolicies.ReadFile("ndpa_policies.rego")
+	if err != nil {
+		log.Fatalf("Failed to read embedded policy file: %v", err)
 	}
 
 	ctx := context.Background()
 
+	// Compile Rego policy
 	query, err := rego.New(
 		rego.Query("data.ndepa.policies.deny"),
-		rego.Module("ndpa_policies.rego", policyContent),
+		rego.Module("ndpa_policies.rego", string(policyBytes)),
 	).PrepareForEval(ctx)
 
 	if err != nil {
-		log.Fatalf("Failed to initialize OPA engine: %v", err)
+		log.Fatalf("Failed to compile OPA policy: %v", err)
 	}
 
-	results, err := query.Eval(ctx, rego.EvalInput(input))
-	if err != nil {
-		log.Fatalf("Error evaluating policy: %v", err)
-	}
+	fmt.Println("==================================================================")
+	fmt.Println("          NDPA 2023 COMPLIANCE SCANNER RESULTS                    ")
+	fmt.Println("==================================================================")
+	fmt.Printf("Target: %s\n", targetPath)
+	fmt.Printf("Time:   %s\n", time.Now().UTC().Format(time.RFC3339))
+	fmt.Println("==================================================================")
 
-	report := ScanReport{
-		Timestamp:  time.Now().UTC().Format(time.RFC3339),
-		TargetFile: manifestPath,
-		Status:     "PASS",
-		Findings:   []Finding{},
-	}
+	var violations []string
 
-	if len(results) > 0 && len(results[0].Expressions) > 0 {
-		rawViolations, ok := results[0].Expressions[0].Value.([]interface{})
-		if ok && len(rawViolations) > 0 {
-			report.Status = "FAIL"
-			report.TotalErrors = len(rawViolations)
+	// Evaluate every document parsed from the stream
+	for _, doc := range documents {
+		results, err := query.Eval(ctx, rego.EvalInput(doc))
+		if err != nil {
+			log.Fatalf("Failed to evaluate policy: %v", err)
+		}
 
-			for i, v := range rawViolations {
-				report.Findings = append(report.Findings, Finding{
-					ID:          i + 1,
-					Rule:        "NDPA Policy Violation",
-					Description: fmt.Sprintf("%v", v),
-				})
+		if len(results) > 0 && len(results[0].Expressions) > 0 {
+			if denials, ok := results[0].Expressions[0].Value.([]interface{}); ok {
+				for _, d := range denials {
+					violations = append(violations, fmt.Sprintf("%v", d))
+				}
 			}
 		}
 	}
 
-	if *formatFlag == "json" {
-		encoder := json.NewEncoder(os.Stdout)
-		encoder.SetIndent("", "  ")
-		encoder.SetEscapeHTML(false)
-		if err := encoder.Encode(report); err != nil {
-			log.Fatalf("Error generating JSON report: %v", err)
+	if len(violations) > 0 {
+		fmt.Printf("\n❌ VIOLATIONS DETECTED (%d):\n", len(violations))
+		for i, v := range violations {
+			fmt.Printf("  %d. %s\n", i+1, v)
 		}
-	} else {
-		renderTextReport(report)
-	}
-
-	if report.Status == "FAIL" {
 		os.Exit(1)
-	}
-}
-
-func renderTextReport(report ScanReport) {
-	fmt.Println("=======================================================")
-	fmt.Println("       NDPA 2023 COMPLIANCE SCANNER RESULTS           ")
-	fmt.Println("=======================================================")
-	fmt.Printf(" Target: %s\n", report.TargetFile)
-	fmt.Printf(" Time:   %s\n", report.Timestamp)
-	fmt.Println("=======================================================")
-
-	if report.Status == "FAIL" {
-		fmt.Printf("\n❌ Found %d NDPA Violation(s):\n\n", report.TotalErrors)
-		for _, f := range report.Findings {
-			fmt.Printf("[%d] %s\n", f.ID, f.Description)
-		}
-		fmt.Println("\nResult: FAIL ❌ (Fix violations prior to DPCO Audit Returns)")
 	} else {
-		fmt.Println("\n✅ PASS: No NDPA violations detected!")
+		fmt.Println("\n  PASS: No NDPA violations detected!")
+		os.Exit(0)
 	}
 }
