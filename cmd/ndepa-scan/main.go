@@ -107,14 +107,16 @@ func main() {
 		}
 	}
 
-	// Output Formatting
+
+// Output Formatting
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 	status := "PASS"
 	if len(allViolations) > 0 {
 		status = "FAIL"
 	}
 
-	if *outputFormat == "json" {
+	switch *outputFormat {
+	case "json":
 		res := ScanResult{
 			Target:     targetPath,
 			Time:       timestamp,
@@ -124,26 +126,30 @@ func main() {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		enc.Encode(res)
-	} else {
-		fmt.Println("==================================================================")
-		fmt.Println("             NDPA 2023 COMPLIANCE SCANNER RESULTS                 ")
-		fmt.Println("==================================================================")
+
+	case "sarif":
+        	sarifBytes, err := parser.ConvertViolationsToSARIF(targetPath, allViolations)
+		if err != nil {
+			log.Fatalf("Error generating SARIF output: %v", err)
+		}
+		fmt.Println(string(sarifBytes))
+
+	default:
+		fmt.Println("==================================================")
+		fmt.Println("       NDPA 2023 COMPLIANCE SCANNER RESULTS       ")
+		fmt.Println("==================================================")
 		fmt.Printf("Target: %s\n", targetPath)
 		fmt.Printf("Time:   %s\n", timestamp)
-		fmt.Println("==================================================================")
+		fmt.Println("==================================================")
 		fmt.Println()
 
-		if len(allViolations) > 0 {
-			fmt.Printf("❌ VIOLATIONS DETECTED (%d):\n", len(allViolations))
-			for i, v := range allViolations {
-				fmt.Printf("  %d. %s\n", i+1, v)
-			}
+                if len(allViolations) > 0 {
+		   fmt.Printf("❌ VIOLATIONS DETECTED (%d):\n", len(allViolations))
+		   for i, v := range allViolations {
+		      fmt.Printf("  %d. %s\n", i+1, v)
+		   }
 		} else {
-			fmt.Println("PASS: No NDPA violations detected!")
+		   fmt.Println("PASS: No NDPA violations detected!")
 		}
-	}
-
-	if len(allViolations) > 0 {
-		os.Exit(1)
-	}
-}
+	     } // Closes switch *outputFormat
+          }     // Closes func main()
