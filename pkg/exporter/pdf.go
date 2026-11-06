@@ -50,14 +50,11 @@ func GeneratePDF(data AuditReportData, outputPath string) error {
 		text.NewCol(2, "Verdict", props.Text{Size: 7}),
 	)
 
-	// Fallback/Default structured rows if data is empty, or loop over actual data
 	matrixRows := data.ComplianceMatrix
 	if len(matrixRows) == 0 {
 		matrixRows = []ComplianceRule{
 			{Clause: "Section 24 (Data Safety)", Category: "Static", Finding: "Root Filesystem Write", Verdict: "FAIL (Medium)"},
 			{Clause: "Section 34 (Encryption)", Category: "Dynamic", Finding: "HTTP Unencrypted PII", Verdict: "FLAGGED (High)"},
-			{Clause: "Section 39 (Egress Boundary)", Category: "Static", Finding: "Egress Policy Active", Verdict: "PASS"},
-			{Clause: "Section 41 (Cross-Border)", Category: "Dynamic", Finding: "TLS Egress to External", Verdict: "COMPLIANT"},
 		}
 	}
 
@@ -76,21 +73,14 @@ func GeneratePDF(data AuditReportData, outputPath string) error {
 	mrt.AddRow(8,
 		text.NewCol(12, "2. DYNAMIC eBPF RUNTIME TELEMETRY (PRIVACY REDACTED)", props.Text{Size: 9, Color: &props.Color{Red: 30, Green: 30, Blue: 30}}),
 	)
-	mrt.AddRow(6,
-		text.NewCol(12, "[Kernel Tracepoint: sys_enter_connect]", props.Text{Size: 7}),
-	)
-	mrt.AddRow(6,
-		text.NewCol(12, "- Event #1: Pod 'nginx-prod-58544' -> Destination 'postman-echo.com:443' (TLS)", props.Text{Size: 7}),
-	)
-	mrt.AddRow(6,
-		text.NewCol(12, "  Redacted IP: XXX.XXX.XXX.XXX | Protocol: TCP | Status: COMPLIANT", props.Text{Size: 7}),
-	)
-	mrt.AddRow(6,
-		text.NewCol(12, "- Event #2: Pod 'payment-service-6799' -> Destination 'unapproved-sink.net:80' (HTTP)", props.Text{Size: 7}),
-	)
-	mrt.AddRow(6,
-		text.NewCol(12, "  Redacted IP: XXX.XXX.XXX.XXX | Protocol: TCP | Status: FLAGGED_PII_LEAK", props.Text{Size: 7}),
-	)
+	
+	if len(data.TelemetryEvents) > 0 {
+		for _, ev := range data.TelemetryEvents {
+			mrt.AddRow(6, text.NewCol(12, fmt.Sprintf("- %s", ev), props.Text{Size: 7}))
+		}
+	} else {
+		mrt.AddRow(6, text.NewCol(12, "[Kernel Tracepoint: sys_enter_connect] - No anomaly detected", props.Text{Size: 7}))
+	}
 
 	mrt.AddRow(6, col.New(12))
 
@@ -106,7 +96,7 @@ func GeneratePDF(data AuditReportData, outputPath string) error {
 		text.NewCol(12, fmt.Sprintf("SHA-256 Bundle Checksum: %s", checksum), props.Text{Size: 7}),
 	)
 	mrt.AddRow(6,
-		text.NewCol(12, "Certified by TraceTrust Engine v1.0.4", props.Text{Size: 7}),
+		text.NewCol(12, fmt.Sprintf("Certified by TraceTrust Engine %s", data.EngineVersion), props.Text{Size: 7}),
 	)
 
 	document, err := mrt.Generate()
