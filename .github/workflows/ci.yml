@@ -39,4 +39,3 @@ jobs:
           CGO_ENABLED: 1
         run: |
           go build -v -o bin/ndepa-scan ./cmd/ndepa-scan
-          go build -v -o bin/ndepa-trace-agent ./cmd/ndepa-trace-agent
