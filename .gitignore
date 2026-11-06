@@ -22,3 +22,4 @@ car-output/
 *.sarif
 *.pdf
 *.zip
+ndepa-scan_*.tar.gz
