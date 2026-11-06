@@ -59,11 +59,24 @@ func GeneratePDF(data AuditReportData, outputPath string) error {
 	}
 
 	for _, rule := range matrixRows {
+		clause := rule.Clause
+		if clause == "" {
+			clause = rule.RuleID
+		}
+		finding := rule.Finding
+		if finding == "" {
+			finding = rule.Description
+		}
+		verdict := rule.Verdict
+		if verdict == "" {
+			verdict = rule.Severity
+		}
+
 		mrt.AddRow(6,
-			text.NewCol(3, rule.Clause, props.Text{Size: 7}),
+			text.NewCol(3, clause, props.Text{Size: 7}),
 			text.NewCol(2, rule.Category, props.Text{Size: 7}),
-			text.NewCol(5, rule.Finding, props.Text{Size: 7}),
-			text.NewCol(2, rule.Verdict, props.Text{Size: 7}),
+			text.NewCol(5, finding, props.Text{Size: 7}),
+			text.NewCol(2, verdict, props.Text{Size: 7}),
 		)
 	}
 
@@ -75,8 +88,8 @@ func GeneratePDF(data AuditReportData, outputPath string) error {
 	)
 	
 	if len(data.TelemetryEvents) > 0 {
-		for _, ev := range data.TelemetryEvents {
-			mrt.AddRow(6, text.NewCol(12, fmt.Sprintf("- %s", ev), props.Text{Size: 7}))
+		for _, item := range data.TelemetryEvents {
+			mrt.AddRow(6, text.NewCol(12, fmt.Sprintf("- %s: %s", item.Description, item.Details), props.Text{Size: 7}))
 		}
 	} else {
 		mrt.AddRow(6, text.NewCol(12, "[Kernel Tracepoint: sys_enter_connect] - No anomaly detected", props.Text{Size: 7}))
